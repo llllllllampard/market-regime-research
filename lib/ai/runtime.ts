@@ -68,6 +68,20 @@ function allText(value: z.infer<typeof RuntimeSynthesisSchema>): string[] {
   return [value.headline.text, value.mainConflict.text, ...value.inferences.map((item) => item.text), ...value.uncertainties.map((item) => item.text)];
 }
 
+function containsUnknownIndexToken(text: string): boolean {
+  const withoutAllowedTokens = text.replace(/\{\{(?:HS_INDEX|CSI_INDEX)\}\}/g, "");
+  return /\{\{|\}\}/.test(withoutAllowedTokens);
+}
+
+function restoreCanonicalIndexNames(item: NarrativeItem): NarrativeItem {
+  return {
+    ...item,
+    text: item.text
+      .replaceAll("{{HS_INDEX}}", "沪深300")
+      .replaceAll("{{CSI_INDEX}}", "中证1000"),
+  };
+}
+
 function validateRuntimeNarrative(
   value: z.infer<typeof RuntimeSynthesisSchema>,
   evidence: Evidence[],
@@ -85,7 +99,8 @@ function validateRuntimeNarrative(
     }
   }
   const texts = allText(value);
-  if (texts.some((text) => /\d/.test(text))) return "模型解释包含未经白名单校验的数字";
+  if (texts.some((text) => /\p{Number}/u.test(text))) return "模型解释包含未经白名单校验的数字";
+  if (texts.some(containsUnknownIndexToken)) return "模型解释包含未知指数占位符";
   if (texts.some((text) => /(必涨|必跌|肯定涨|肯定跌|买入|卖出|加仓|减仓|几成仓|收益承诺|逢低布局|做多|做空|目标价|建议.{0,8}(买|卖|持有|布局)|适合.{0,8}(买|卖|做多|做空))/i.test(text))) {
     return "模型解释越过研究合规边界";
   }
@@ -133,12 +148,12 @@ export async function synthesizeWithOptionalLlm(input: {
           {
             role: "system",
             content:
-              "你是A股市场状态研究助手。只能依据给定证据归纳当前状态，不预测未来，不给买卖或仓位建议。只输出JSON。解释文本不得写任何阿拉伯数字；所有结论必须引用给定Evidence ID。",
+              "你是A股市场状态研究助手。只能依据给定证据归纳当前状态，不预测未来，不给买卖或仓位建议。只输出JSON。解释文本不得写任何数字；如需提及沪深300或中证1000，只能分别写成 {{HS_INDEX}} 或 {{CSI_INDEX}}；所有结论必须引用给定Evidence ID。",
           },
           {
             role: "user",
             content: JSON.stringify({
-              task: "用简洁中文输出 headline、mainConflict、inferences、uncertainties；每项格式为 {text,evidenceIds}；inferences 必须为一至三项，uncertainties 为零至三项；text 不写阿拉伯数字，Evidence ID 仅放入 evidenceIds",
+              task: "用简洁中文输出 headline、mainConflict、inferences、uncertainties；每项格式为 {text,evidenceIds}；inferences 必须为一至三项，uncertainties 为零至三项；text 不得写任何数字，指数名称仅可用 {{HS_INDEX}} 或 {{CSI_INDEX}} 占位，Evidence ID 仅放入 evidenceIds",
               plan: input.plan,
               state: input.state,
               evidence: input.evidence.map((item) => ({
@@ -164,10 +179,10 @@ export async function synthesizeWithOptionalLlm(input: {
       model: config.model,
       synthesis: {
         ...input.fallback,
-        headline: appendCitations(parsed.headline),
-        mainConflict: appendCitations(parsed.mainConflict),
-        inferences: parsed.inferences.map(appendCitations),
-        uncertainties: parsed.uncertainties.map(appendCitations),
+        headline: appendCitations(restoreCanonicalIndexNames(parsed.headline)),
+        mainConflict: appendCitations(restoreCanonicalIndexNames(parsed.mainConflict)),
+        inferences: parsed.inferences.map(restoreCanonicalIndexNames).map(appendCitations),
+        uncertainties: parsed.uncertainties.map(restoreCanonicalIndexNames).map(appendCitations),
       },
     };
   } catch (error) {

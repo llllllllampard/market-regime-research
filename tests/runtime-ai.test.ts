@@ -108,6 +108,55 @@ describe("optional runtime LLM synthesis", () => {
     expect(requestBodies[3]).not.toHaveProperty("enable_thinking");
   });
 
+  it("restores canonical index tokens but rejects all model-authored numbers and unknown tokens", async () => {
+    const accepted = await synthesizeWithOptionalLlm({
+      plan,
+      state,
+      evidence,
+      fallback,
+      options: {
+        apiKey: "test-only",
+        model: "test-model",
+        fetch: fakeFetch({
+          ...validStructuredExplanation,
+          headline: { text: "{{HS_INDEX}}当前结构偏弱", evidenceIds: ["E1"] },
+          mainConflict: { text: "{{CSI_INDEX}}对比信号仍待确认", evidenceIds: ["E1"] },
+        }),
+      },
+    });
+
+    expect(accepted.mode).toBe("llm");
+    expect(accepted.synthesis.headline.text).toBe("沪深300当前结构偏弱 [E1]");
+    expect(accepted.synthesis.mainConflict.text).toBe("中证1000对比信号仍待确认 [E1]");
+    expect(accepted.synthesis.headline.text).not.toContain("{{");
+
+    for (const unsafeText of [
+      "沪深300当前结构偏弱",
+      "当前幅度为3",
+      "当前幅度为３",
+      "当前幅度为٣",
+      "当前幅度为③",
+      "当前{{UNKNOWN_INDEX}}结构偏弱",
+    ]) {
+      const rejected = await synthesizeWithOptionalLlm({
+        plan,
+        state,
+        evidence,
+        fallback,
+        options: {
+          apiKey: "test-only",
+          model: "test-model",
+          fetch: fakeFetch({
+            ...validStructuredExplanation,
+            headline: { text: unsafeText, evidenceIds: ["E1"] },
+          }),
+        },
+      });
+      expect(rejected.mode).toBe("template");
+      expect(rejected.reason).toMatch(/数字|占位符/);
+    }
+  });
+
   it("rejects an unknown citation and falls back safely", async () => {
     const result = await synthesizeWithOptionalLlm({
       plan,
