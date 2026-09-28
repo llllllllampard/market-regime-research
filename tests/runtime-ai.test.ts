@@ -46,6 +46,13 @@ function fakeFetch(content: unknown): typeof fetch {
   }), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
 }
 
+const validStructuredExplanation = {
+  headline: { text: "核心证据显示当前结构偏弱", evidenceIds: ["E1"] },
+  mainConflict: { text: "趋势修复仍缺少确认", evidenceIds: ["E1"] },
+  inferences: [{ text: "当前状态应保持审慎解释", evidenceIds: ["E1"] }],
+  uncertainties: [{ text: "仍需观察后续证据变化", evidenceIds: ["E1"] }],
+};
+
 describe("optional runtime LLM synthesis", () => {
   it("uses an explicitly labelled template fallback without configuration", async () => {
     const result = await synthesizeWithOptionalLlm({ plan, state, evidence, fallback, options: {} });
@@ -63,16 +70,42 @@ describe("optional runtime LLM synthesis", () => {
         apiKey: "test-only",
         baseUrl: "https://example.invalid/v1",
         model: "test-model",
-        fetch: fakeFetch({
-          headline: { text: "核心证据显示当前结构偏弱", evidenceIds: ["E1"] },
-          mainConflict: { text: "趋势修复仍缺少确认", evidenceIds: ["E1"] },
-          inferences: [{ text: "当前状态应保持审慎解释", evidenceIds: ["E1"] }],
-          uncertainties: [{ text: "仍需观察后续证据变化", evidenceIds: ["E1"] }],
-        }),
+        fetch: fakeFetch(validStructuredExplanation),
       },
     });
     expect(result.mode).toBe("llm");
     expect(result.synthesis.headline.text).toContain("[E1]");
+  });
+
+  it("disables thinking only for Bailian-compatible endpoints", async () => {
+    const requestBodies: Array<Record<string, unknown>> = [];
+    const recordingFetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify(validStructuredExplanation) } }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+
+    for (const baseUrl of [
+      "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "https://workspace-id.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "https://example.oss-cn-beijing.aliyuncs.com/v1",
+      "https://example.invalid/v1",
+    ]) {
+      const result = await synthesizeWithOptionalLlm({
+        plan,
+        state,
+        evidence,
+        fallback,
+        options: { apiKey: "test-only", baseUrl, model: "test-model", fetch: recordingFetch },
+      });
+      expect(result.mode).toBe("llm");
+    }
+
+    expect(requestBodies[0].enable_thinking).toBe(false);
+    expect(requestBodies[1].enable_thinking).toBe(false);
+    expect(requestBodies[2]).not.toHaveProperty("enable_thinking");
+    expect(requestBodies[3]).not.toHaveProperty("enable_thinking");
   });
 
   it("rejects an unknown citation and falls back safely", async () => {

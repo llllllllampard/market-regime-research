@@ -45,6 +45,18 @@ export type RuntimeSynthesisResult = {
   reason?: string;
 };
 
+const DEFAULT_LLM_TIMEOUT_MS = 15_000;
+
+function isBailianBaseUrl(baseUrl: string): boolean {
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase();
+    return /^dashscope(?:-[a-z0-9-]+)?\.aliyuncs\.com$/.test(hostname)
+      || hostname.endsWith(".maas.aliyuncs.com");
+  } catch {
+    return false;
+  }
+}
+
 function configured(options: RuntimeLlmOptions): Required<Pick<RuntimeLlmOptions, "apiKey" | "baseUrl" | "model">> | null {
   const apiKey = options.apiKey ?? process.env.LLM_API_KEY;
   const baseUrl = options.baseUrl ?? process.env.LLM_BASE_URL ?? "https://api.openai.com/v1";
@@ -99,7 +111,7 @@ export async function synthesizeWithOptionalLlm(input: {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 9_000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS);
   const abortFromParent = () => controller.abort();
   options.signal?.addEventListener("abort", abortFromParent, { once: true });
   const fetchImpl = options.fetch ?? fetch;
@@ -116,6 +128,7 @@ export async function synthesizeWithOptionalLlm(input: {
         temperature: 0.1,
         max_tokens: 650,
         response_format: { type: "json_object" },
+        ...(isBailianBaseUrl(config.baseUrl) ? { enable_thinking: false } : {}),
         messages: [
           {
             role: "system",
@@ -125,7 +138,7 @@ export async function synthesizeWithOptionalLlm(input: {
           {
             role: "user",
             content: JSON.stringify({
-              task: "用简洁中文输出 headline、mainConflict、inferences、uncertainties；每项格式为 {text,evidenceIds}",
+              task: "用简洁中文输出 headline、mainConflict、inferences、uncertainties；每项格式为 {text,evidenceIds}；inferences 必须为一至三项，uncertainties 为零至三项；text 不写阿拉伯数字，Evidence ID 仅放入 evidenceIds",
               plan: input.plan,
               state: input.state,
               evidence: input.evidence.map((item) => ({
