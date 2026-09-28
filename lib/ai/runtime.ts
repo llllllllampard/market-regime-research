@@ -205,12 +205,18 @@ export async function synthesizeWithOptionalLlm(input: {
           {
             role: "system",
             content:
-              "你是A股市场状态研究助手。只能依据给定证据归纳当前状态，不预测未来，不给买卖或仓位建议。只输出JSON。解释文本不得写任何数字；如需提及目标指数或风格基准，只能分别写成 {{HS_INDEX}} 或 {{CSI_INDEX}}；所有结论必须引用给定Evidence ID。",
+              "你是A股市场状态研究助手。只能依据给定证据归纳当前状态，不预测未来，不给买卖或仓位建议。只输出JSON。每个叙事对象必须且只能有 text 和 evidenceIds 两个键，不得把正文用作键名。解释文本不得写任何数字；如需提及目标指数或风格基准，只能分别写成 {{HS_INDEX}} 或 {{CSI_INDEX}}；所有结论必须引用给定Evidence ID。",
           },
           {
             role: "user",
             content: JSON.stringify({
               task: "用简洁中文输出 headline、mainConflict、inferences、uncertainties；每项格式为 {text,evidenceIds}；inferences 必须为一至三项，uncertainties 为零至三项；text 不得写任何数字，指数名称仅可用 {{HS_INDEX}} 或 {{CSI_INDEX}} 占位，Evidence ID 仅放入 evidenceIds",
+              outputContract: {
+                headline: { text: "一句中文结论", evidenceIds: ["E1"] },
+                mainConflict: { text: "一句中文主要矛盾", evidenceIds: ["E1"] },
+                inferences: [{ text: "一句中文归纳", evidenceIds: ["E1"] }],
+                uncertainties: [{ text: "一句中文不确定性", evidenceIds: ["E1"] }],
+              },
               plan: {
                 intent: input.plan.intent,
                 object: "{{HS_INDEX}}",
