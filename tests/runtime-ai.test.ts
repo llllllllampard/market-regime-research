@@ -106,6 +106,19 @@ describe("optional runtime LLM synthesis", () => {
     expect(requestBodies[1].enable_thinking).toBe(false);
     expect(requestBodies[2]).not.toHaveProperty("enable_thinking");
     expect(requestBodies[3]).not.toHaveProperty("enable_thinking");
+
+    const messages = requestBodies[0].messages as Array<{ role: string; content: string }>;
+    const modelInput = JSON.parse(messages.find((message) => message.role === "user")?.content ?? "{}") as {
+      plan: { object: string; window: string };
+      evidence: Array<{ claim: string }>;
+    };
+    expect(modelInput.plan).toMatchObject({ object: "{{HS_INDEX}}", window: "较短观察窗口" });
+    expect(modelInput.evidence[0].claim).toBe("趋势证据支持承压或偏弱解释，数据质量可用。");
+    expect(modelInput.evidence[0].claim).not.toMatch(/\p{Number}/u);
+    const serializedInputWithoutEvidenceIds = messages[1].content.replace(/E\d+/g, "");
+    expect(serializedInputWithoutEvidenceIds).not.toMatch(/\p{Number}/u);
+    expect(serializedInputWithoutEvidenceIds).not.toContain("沪深300");
+    expect(serializedInputWithoutEvidenceIds).not.toContain("中证1000");
   });
 
   it("restores canonical index tokens but rejects all model-authored numbers and unknown tokens", async () => {
@@ -119,8 +132,8 @@ describe("optional runtime LLM synthesis", () => {
         model: "test-model",
         fetch: fakeFetch({
           ...validStructuredExplanation,
-          headline: { text: "{{HS_INDEX}}当前结构偏弱", evidenceIds: ["E1"] },
-          mainConflict: { text: "{{CSI_INDEX}}对比信号仍待确认", evidenceIds: ["E1"] },
+          headline: { text: "{{HS_INDEX}}当前结构偏弱 [E1]", evidenceIds: ["E1"] },
+          mainConflict: { text: "{{CSI_INDEX}}对比信号仍待确认【E1】", evidenceIds: ["E1"] },
         }),
       },
     });
@@ -131,12 +144,16 @@ describe("optional runtime LLM synthesis", () => {
     expect(accepted.synthesis.headline.text).not.toContain("{{");
 
     for (const unsafeText of [
-      "沪深300当前结构偏弱",
+      "上涨沪深300点",
+      "收益中证1000元",
       "当前幅度为3",
       "当前幅度为３",
       "当前幅度为٣",
       "当前幅度为③",
       "当前{{UNKNOWN_INDEX}}结构偏弱",
+      "上涨{{HS_INDEX}} 点",
+      "收益{{CSI_INDEX}}（元）",
+      "涨幅达到{{HS_INDEX}}",
     ]) {
       const rejected = await synthesizeWithOptionalLlm({
         plan,
