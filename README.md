@@ -9,16 +9,16 @@
 | Web 产品 | 已实现：Next.js 单页研究工作台 + `POST /api/analyze` |
 | 实时数据 | 已实现并在本机跑通：东方财富沪深 300/中证 1000 日线及全 A 涨跌分布 |
 | 数据降级 | 已实现：默认 `auto`；核心实时数据失败时显式切换到带来源和时点的真实历史快照，也可强制 `live` 或 `snapshot` |
-| 运行时 LLM | 调用、结构校验和安全降级已实现；本地与 Vercel 均未配置真实 Key/模型，使用确定性模板 |
-| 自动化检查 | `44/44` 测试通过，lint、生产构建及生产依赖高危漏洞审计通过（2026-09-28） |
+| 运行时 LLM | 已在 Vercel 通过 Sensitive 环境变量启用阿里云百炼 `qwen-plus`；结构、引用、数字和合规校验及确定性模板安全降级均已验证 |
+| 自动化检查 | 11 个测试文件、`46/46` 测试通过，lint、生产构建及生产依赖高危漏洞审计通过（2026-09-28） |
 | 本地产品烟测 | 实时 20/60 日主研判、同一时点风格追问、历史快照、证据抽屉和合规拦截均已验证 |
-| 生产部署 | `PASS`；2026-09-28 13:41 CST 部署，13:56 CST 左右完成生产烟测 |
+| 生产部署 | `PASS`；已验证部署 `dpl_4XVx5GBhKEmAPR8T8EdF8mV7yCkJ`，真实 LLM 烟测于 2026-09-28 15:56:59 CST 通过 |
 | 在线体验 | [https://market-regime-research-gamma.vercel.app](https://market-regime-research-gamma.vercel.app) |
 | 源码仓库 | [GitHub · market-regime-research](https://github.com/llllllllampard/market-regime-research) |
-| 代码/本地验收基线 | [`f863059`](https://github.com/llllllllampard/market-regime-research/commit/f8630593e1aeee0c3c35e412c5006cbce28e7d1f) |
-| 生产运行基线 | [`81ed077`](https://github.com/llllllllampard/market-regime-research/commit/81ed0779f2aa8ff067c1e84c79c42da67d2ef01a)；Vercel 部署 `dpl_Hdjx5TsakH5PgdeJ2dwg2Sg7NEem` |
+| 代码实现基线 | [`e4e9516e912f`](https://github.com/llllllllampard/market-regime-research/commit/e4e9516e912f) |
+| 已验证生产部署 | `dpl_4XVx5GBhKEmAPR8T8EdF8mV7yCkJ` |
 
-生产 API 烟测通过 [GitHub Actions run 36384064126](https://github.com/llllllllampard/market-regime-research/actions/runs/36384064126) 在 GitHub-hosted 境外 runner 完成；原因是本机访问 `vercel.app` 受到 DNS 污染。相同版本的证据抽屉与风格追问已在本地完成视觉和交互验证。完整证据与未测边界见 [测试报告](docs/TEST_REPORT.md)。
+最终真实 LLM 烟测由 [GitHub Actions run 36390799687（attempt 4）](https://github.com/llllllllampard/market-regime-research/actions/runs/36390799687) 在 GitHub-hosted runner 完成：HTTP 200、耗时 8870 ms、`synthesis.status=success`、执行轨迹包含 `qwen-plus`，且没有模板降级说明。使用境外 runner 的原因是本机访问 `vercel.app` 受到 DNS 污染。相同版本的证据抽屉与风格追问已在本地完成视觉和交互验证。完整证据与未测边界见 [测试报告](docs/TEST_REPORT.md)。
 
 ## 解决的问题
 
@@ -103,7 +103,9 @@
 - 模型文本不得含未经白名单校验的数字，也不得出现预测、买卖或仓位建议。
 - 超时、HTTP 错误、坏 JSON、Schema 错误、未知引用或合规错误都会回退到确定性模板并在执行轨迹中说明原因。
 
-当前环境未配置真实 LLM，因此不能声称已完成外部模型在线推理。测试使用注入的假 OpenAI-compatible 响应验证了成功路径和未知引用回退路径。
+Vercel 生产环境已通过 Sensitive 环境变量配置阿里云百炼 OpenAI-compatible 服务和 `qwen-plus`，真实外部模型在线推理已完成验证；凭证仅保存在服务端环境变量中，不进入仓库、响应或浏览器。未配置凭证的本地环境仍可完整运行确定性链路。
+
+真实 LLM 联调前几轮依次暴露了三类问题，且每次都被校验器安全降级，没有把不合格模型文本作为结论展示：初始完整业务输入超过原 9 秒截止时间；延长截止时间后，模型输出的数字触发数字白名单校验；移除数字后，返回 JSON 的结构仍不符合 Schema。最终通过将截止时间设为 15 秒、对百炼关闭思考模式（`enable_thinking: false`）、压缩为定性最小输入、禁止模型在叙事中直接生成数字、以无数字占位符表示标准指数名，并强化严格 JSON 输出契约解决。最终生产烟测为 `synthesis.status=success`，执行轨迹记录 `qwen-plus`，没有进入模板降级。
 
 ## 数据来源与失败处理
 
@@ -156,8 +158,8 @@ npm run dev
 | 变量 | 必需 | 实际作用 |
 |---|---:|---|
 | `LLM_API_KEY` | 否 | OpenAI-compatible 服务端鉴权；缺失时使用确定性模板 |
-| `LLM_BASE_URL` | 否 | 默认 `https://api.openai.com/v1` |
-| `LLM_MODEL` | 否 | 模型名；与 Key 同时存在才启用运行时 LLM |
+| `LLM_BASE_URL` | 否 | 代码默认 `https://api.openai.com/v1`；当前生产使用 `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| `LLM_MODEL` | 否 | 模型名；当前生产使用 `qwen-plus`，与 Key 同时存在才启用运行时 LLM |
 | `FUYAO_API_KEY` | 否 | 仅预留，当前代码未接入扶摇 Provider |
 | `DATA_MODE` | 否 | `auto`（默认）/`live`/`snapshot`；`auto` 在核心实时数据失败时显式使用内置历史快照 |
 
@@ -171,21 +173,19 @@ npm run lint
 npm run build
 ```
 
-2026-09-28 的本地结果为 11 个测试文件、44 个测试全部通过，ESLint、Next.js 生产构建和生产依赖高危漏洞审计通过。实时模式和 `snapshot` 模式也分别完成 API 烟测。生产环境进一步验证：首页与健康检查、20/60 日实时分析、同会话风格复用、荐股/预测拦截和非法请求校验均按预期返回；自动化与手工结果、尚未验证项见 [docs/TEST_REPORT.md](docs/TEST_REPORT.md)。
+2026-09-28 的最终结果为 11 个测试文件、46 个测试全部通过，ESLint、Next.js 生产构建和生产依赖高危漏洞审计通过。实时模式和 `snapshot` 模式也分别完成 API 烟测。生产环境进一步验证：首页与健康检查、20/60 日实时分析、同会话风格复用、荐股/预测拦截和非法请求校验均按预期返回；真实百炼 LLM 烟测还验证了 HTTP 200、`synthesis.status=success`、`qwen-plus` 执行轨迹和无模板降级。自动化与手工结果、尚未验证项见 [docs/TEST_REPORT.md](docs/TEST_REPORT.md)。
 
 ## 部署
 
 已部署到 Vercel：
 
 - 生产 URL：[https://market-regime-research-gamma.vercel.app](https://market-regime-research-gamma.vercel.app)
-- 部署时间：`2026-09-28 13:41 CST`
-- 部署 ID：`dpl_Hdjx5TsakH5PgdeJ2dwg2Sg7NEem`
+- 已验证部署 ID：`dpl_4XVx5GBhKEmAPR8T8EdF8mV7yCkJ`
 - 源码仓库：[https://github.com/llllllllampard/market-regime-research](https://github.com/llllllllampard/market-regime-research)
-- 代码/本地验收基线：[`f863059`](https://github.com/llllllllampard/market-regime-research/commit/f8630593e1aeee0c3c35e412c5006cbce28e7d1f)
-- 生产运行基线：[`81ed077`](https://github.com/llllllllampard/market-regime-research/commit/81ed0779f2aa8ff067c1e84c79c42da67d2ef01a)
-- 生产烟测证据：[GitHub Actions run 36384064126](https://github.com/llllllllampard/market-regime-research/actions/runs/36384064126)，约 `2026-09-28 13:56 CST`
+- 代码实现基线：[`e4e9516e912f`](https://github.com/llllllllampard/market-regime-research/commit/e4e9516e912f)
+- 最终真实 LLM 烟测证据：[GitHub Actions run 36390799687（attempt 4）](https://github.com/llllllllampard/market-regime-research/actions/runs/36390799687)，`2026-09-28 15:56:59 CST`
 
-生产烟测返回：首页 `200 / 404 ms`，健康检查 `200 / 260 ms`，20 日分析 `200 / 2078 ms`，同会话风格追问 `200 / 127 ms`，60 日分析 `200 / 507 ms`；荐股与预测分别返回 `422 recommendation` 和 `422 prediction`，非法请求返回 `400`。20/60 日均为实时数据、零来源 issue、`partial` 健康度和 74 分置信度；这里的 `partial` 来自盘中成交额按规则留空，并非来源失败。Vercel 环境未配置任何密钥型环境变量，因此线上没有真实 LLM 调用，使用确定性模板。
+最终真实 LLM 烟测返回 HTTP 200，耗时 8870 ms；响应为 `synthesis.status=success`，执行轨迹包含 `qwen-plus`，没有模板降级说明。此前生产主链路烟测还覆盖首页、健康检查、20/60 日实时分析、同会话风格复用、荐股/预测拦截及非法请求。20/60 日盘中响应的 `partial` 健康度来自成交额按规则留空，并非来源失败。百炼凭证通过 Vercel Sensitive 环境变量提供，未写入源码或前端资源。
 
 受本机 `vercel.app` DNS 污染影响，生产 HTTP 烟测由 GitHub-hosted 境外 runner 执行；本地相同版本已验证证据抽屉和风格追问交互。本轮没有执行真实故障注入、跨浏览器、慢网或全量无障碍专项测试，这些是已记录的非阻断项，不包含在生产部署 `PASS` 范围内。
 

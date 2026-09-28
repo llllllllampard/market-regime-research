@@ -2,14 +2,14 @@
 
 ## 当前结论
 
-本项目在选题、方案收敛、代码实现、界面实现、测试、部署与文档整理中使用了 Codex。运行时的 OpenAI-compatible LLM 路径也已经实现，但本地没有配置真实 `LLM_API_KEY` 与 `LLM_MODEL`，Vercel 环境没有配置密钥型环境变量，所以实际结果使用的是明确标注的确定性模板。
+本项目在选题、方案收敛、代码实现、界面实现、测试、部署与文档整理中使用了 Codex。产品运行时已经接入阿里云百炼的 OpenAI-compatible 接口，模型为 `qwen-plus`。Vercel Production 配置了 Sensitive 类型的 `LLM_API_KEY`，以及 `LLM_BASE_URL`、`LLM_MODEL=qwen-plus`；本文和仓库均不记录或回显密钥值。模型不可用或输出未通过校验时，产品仍会明确标注并安全回退到确定性模板。
 
 这两类 AI 使用必须区分：
 
 - **开发期 AI**：Codex 辅助生成和修改仓库内容，所有结果由代码检查、测试、实时请求或人工页面操作复核。
-- **产品运行时 AI**：可选的 Evidence Pack 归纳层；当前只用假客户端覆盖了部分接口成功/失败路径，尚无真实模型调用记录，生产环境也使用确定性模板。
+- **产品运行时 AI**：受严格白名单和输出校验约束的 Evidence Pack 归纳层；已完成百炼最小真实请求和生产端到端调用，核心计算、事实与引用仍由确定性程序负责。
 
-当前没有扶摇鉴权记录。生产地址为 `https://market-regime-research-gamma.vercel.app`，Vercel 部署 ID 为 `dpl_Hdjx5TsakH5PgdeJ2dwg2Sg7NEem`；代码/本地验收基线为 `f8630593e1aeee0c3c35e412c5006cbce28e7d1f`，生产运行基线为 `81ed0779f2aa8ff067c1e84c79c42da67d2ef01a`。
+生产地址为 `https://market-regime-research-gamma.vercel.app`，最终 Vercel 部署 ID 为 `dpl_4XVx5GBhKEmAPR8T8EdF8mV7yCkJ`，代码与生产验收基线为 `e4e9516e912f`。最终生产 LLM 烟测为 [GitHub Actions run 36390799687，attempt 4](https://github.com/llllllllampard/market-regime-research/actions/runs/36390799687/attempts/4)，完成于 2026-09-28 15:56:59 CST。
 
 ## 开发期 AI 使用记录
 
@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|
 | 2026-09-28 | Codex | 比较三道候选题并收敛范围 | 推荐“AI 驱动的股票市场大势研判”，限定沪深 300、20/60 日和证据化单页产品 | 人工指出风险雷达也是 24 小时，并补充实际只有 5–6 小时；据此重新排序和砍项 | 选题及 MVP 范围确认 |
 | 2026-09-28 | Codex | 形成实施计划 | 产品链路、状态矩阵、证据追溯、数据降级、测试和时间箱 | 人工确认执行；明确不得假定数据、LLM 或部署凭证存在 | 写入 `PROJECT_PLAN.md` |
-| 2026-09-28 | Codex | 实现服务端分析链路 | `/api/analyze`、统一 Schema、公开数据 Provider、指标/状态/置信度/切换条件、引用和合规校验 | 运行 lint、生产构建、44 项测试，并以实时 API 响应核对来源、指标状态和执行轨迹 | 已完成并本地通过 |
+| 2026-09-28 | Codex | 实现服务端分析链路 | `/api/analyze`、统一 Schema、公开数据 Provider、指标/状态/置信度/切换条件、引用和合规校验 | 运行 lint、生产构建和自动化测试，并以实时 API 响应核对来源、指标状态和执行轨迹 | 已完成并本地通过 |
 | 2026-09-28 | Codex | 实现产品界面 | 研究输入、执行轨迹、市场状态、置信度、事实/归纳/不确定性、切换条件、证据台账和抽屉、风格继续研究、合规提示 | 本地逐项操作主研判、风格分析、Evidence 下钻和越界问题改写 | 已完成本地烟测 |
 | 2026-09-28 | Codex | 排查实时数据连接 | 东方财富日线/宽度接入、来源字段留痕、候选后备源审查 | 真实请求发现部分 Node/undici 网络环境的 IPv6 连接不稳定；改为服务端 DNS 优先 IPv4。新浪 `hs_a` 实际最多返回 100 行，不能作为全市场宽度，因此删除该后备 | 东方财富三组实时数据主链路跑通；无效后备未进入最终产品 |
 | 2026-09-28 | Codex | 审阅金融口径与可信度 | 流动性和置信度实现 | 人工检查发现盘中累计成交额不能和完整交易日均值直接比较，并发现覆盖率不能只以已实现维度为分母；完成下述两项修正 | 已修正并回归通过 |
@@ -25,8 +25,9 @@
 | 2026-09-28 | Codex | 加固 API 与研究会话一致性 | 每 IP 限流、请求体上限、取消信号传递、两分钟会话快照复用 | 60 日主研判后发起风格追问，确认两次响应的 `fetchedAt` 和风格指标一致；新增测试确认缓存按浏览器会话与窗口隔离 | 同一会话同一窗口追问可保持研究时点，其他用户/窗口不串用 |
 | 2026-09-28 | Codex | 修复最终合同边界 | API 直接荐股拦截、盘中历史快照专属封顶说明、切换条件 UI 字段 | 新增 API 级合规测试、快照 74 分封顶测试及服务端渲染合同测试；确认页面展示 `persistence` 与 `consequence` | 阻断型边界已回归 |
 | 2026-09-28 | Codex | 修复发布依赖可移植性 | 重建 `package-lock.json`，不改变依赖版本 | 移除 525 个内网 registry resolved URL；复查当前内网 registry 引用为 0，并以公共 npm registry 完成生产依赖审计 | 生产依赖 0 漏洞；完整依赖仍有 2 项 Vitest 开发链路 moderate，未冒险做破坏性 major 升级 |
-| 2026-09-28 | Codex | 对齐交付文档与真实实现 | README、AI 使用记录、测试报告、项目计划 | 回查 11 个测试文件、44 项测试、实时/快照响应、生产依赖零漏洞审计及代码中的运行模式；核对公开仓库与验收基线 | 文档与当前代码对齐 |
+| 2026-09-28 | Codex | 对齐交付文档与真实实现 | README、AI 使用记录、测试报告、项目计划 | 回查 11 个测试文件、当时 44 项测试（百炼接入后最终增补至 46 项）、实时/快照响应、生产依赖零漏洞审计及代码中的运行模式；核对公开仓库与验收基线 | 文档与当前代码对齐 |
 | 2026-09-28 | Codex | 完成 Vercel 发布与生产烟测 | 生产部署、20/60 日 API、同会话风格追问、合规与非法请求检查 | 13:41 CST 发布 `dpl_Hdjx5TsakH5PgdeJ2dwg2Sg7NEem`；因本机 `vercel.app` DNS 污染，约 13:56 CST 改由 GitHub-hosted 境外 runner 执行烟测并保留 [Actions 证据](https://github.com/llllllllampard/market-regime-research/actions/runs/36384064126)；本地相同版本人工检查证据抽屉与风格追问 | 生产部署 `PASS`；真实故障注入、跨浏览器、慢网和全量无障碍未纳入通过范围 |
+| 2026-09-28 | Codex | 接入并加固百炼运行时 LLM | 阿里云百炼 OpenAI-compatible `qwen-plus`、Vercel Sensitive 环境变量、严格输入输出校验 | 最小真实请求返回 HTTP 200；生产迭代中先后触发超时、数字和结构校验降级，均未产生错误结论；最终完成 46/46 测试并以 GitHub-hosted runner 验证生产调用 | 最终生产端到端烟测 `PASS` |
 
 ## 重要人工修正
 
@@ -65,12 +66,13 @@
 ### 已实现的可选 LLM 能力
 
 - 使用 OpenAI-compatible `POST /chat/completions`。
-- 输入仅包含受限 ResearchPlan、程序状态和白名单 Evidence Pack。
+- 输入仅包含受限 ResearchPlan、程序状态和定性白名单 Evidence Pack；自然语言字段不携带原始市场数值，Evidence ID 只保留在结构化字段中。
 - 输出只允许 `headline`、`mainConflict`、`inferences`、`uncertainties` 的严格 JSON 结构。
 - 每一项必须引用本次 Evidence Pack 中存在的 ID。
-- 模型解释不得包含阿拉伯数字，避免把未核验数字带入结果。
+- 模型解释不得包含 Unicode Number 类字符，避免把阿拉伯数字、全角数字等未核验数字带入结果。
 - 预测、买卖、加减仓、收益承诺等表达会触发拒绝。
-- 超时、HTTP 错误、坏 JSON、Schema 不匹配、未知 Evidence ID 或合规失败均使用确定性模板，并把原因写入执行轨迹。
+- 重复的内联 Evidence 引用会先规范化；Schema 不匹配、未知或误用指数占位符、未知 Evidence ID、引用不完整、叙事方向与证据相反、合规失败、超时、HTTP 错误或坏 JSON 均使用确定性模板，并把原因写入执行轨迹。
+- 百炼请求显式发送 `enable_thinking: false`，运行时 LLM 截止时间为 15 秒。
 
 ### 始终由确定性程序负责
 
@@ -88,13 +90,22 @@ AI 不得创造来源、指标、事件、数字或 Evidence ID，也不得在�
 | 场景 | 验证方式 | 实际结果 | 状态 |
 |---|---|---|---|
 | 未配置 Key/模型 | 本地真实 `/api/analyze` 请求 | 执行轨迹显示“未配置运行时 LLM，已使用确定性模板”，确定性结果保留 | `PASS` |
-| Vercel 无密钥配置 | 生产 20/60 日 `/api/analyze` 烟测 | 请求成功，生产环境没有调用真实 LLM，使用确定性模板；未把部署视为真实模型调用证据 | `PASS` |
+| 百炼最小真实请求 | 直接调用 OpenAI-compatible 接口，模型 `qwen-plus` | 返回 HTTP 200 和符合约束的 JSON Object，确认 Key、端点与模型可用；密钥未写入仓库或验证记录 | `PASS` |
+| Vercel 真实 LLM 配置 | Production 配置 `LLM_API_KEY`（Sensitive）、`LLM_BASE_URL`、`LLM_MODEL=qwen-plus` | 部署环境变量生效；任何记录中均不保存密钥值 | `PASS` |
 | 合法结构化模型输出 | Vitest 注入假 OpenAI-compatible 响应 | 接受输出，并为文本附加 `[E1]` | `PASS` |
 | 模型引用未知 `E999` | Vitest 注入假响应 | 拒绝该输出，回退到原确定性模板并记录原因 | `PASS` |
 | 模型叙事方向与全部所引证据相反 | Vitest 注入假响应 | 拒绝该输出，回退到确定性模板并记录方向错误 | `PASS` |
-| 真实外部模型 | 当前没有 Key/模型配置 | 未调用，不能据代码存在声称成功 | `PENDING` |
+| 首次完整生产调用（旧 9 秒截止时间） | [GitHub Actions run 36389179154](https://github.com/llllllllampard/market-regime-research/actions/runs/36389179154) | 百炼未在旧截止时间内完成，`synthesis=degraded`；接口仍返回可用的确定性结果，没有生成未经验证的结论 | `SAFE DEGRADE` |
+| 加固过程中的生产诊断 | 真实端到端重复烟测 | 继续暴露叙事数字与结构化输出问题；Unicode Number、Schema、指数占位符、Evidence ID、引用、方向和合规校验均按设计拒绝输出并安全降级 | `SAFE DEGRADE` |
+| 最终生产端到端调用 | 提交 `e4e9516e912f`、部署 `dpl_4XVx5GBhKEmAPR8T8EdF8mV7yCkJ`；[run 36390799687 attempt 4](https://github.com/llllllllampard/market-regime-research/actions/runs/36390799687/attempts/4) | 2026-09-28 15:56:59 CST 返回 HTTP 200，用时 8870 ms；`synthesis.status=success`，执行轨迹包含 `qwen-plus`，且没有模板降级说明 | `PASS` |
 
-测试中的假 Key 仅用于依赖注入，不会发往网络，也不代表任何真实凭证。
+测试中的假 Key 仅用于依赖注入，不会发往网络，也不代表任何真实凭证。最终自动化测试结果为 46/46 通过。
+
+### 真实模型接入后的修正
+
+1. 将运行时 LLM 截止时间从 9 秒提高到 15 秒，并对百炼请求显式设置 `enable_thinking: false`，使响应时间更适合当前结构化归纳任务。
+2. 模型只接收程序生成的定性白名单证据，自然语言字段不携带原始市场数值；输出端按 Unicode Number 类别拒绝各种形式的数字，而不只检查 ASCII 数字。
+3. 对重复内联 Evidence 引用先做规范化；对未知或误用指数占位符、未知 Evidence ID、Schema、引用完整性、叙事方向和合规表达逐层校验。任何一层失败都保留确定性结果并记录降级原因。
 
 ## 人工验证原则与结果
 
@@ -112,8 +123,9 @@ AI 不得创造来源、指标、事件、数字或 Evidence ID，也不得在�
 
 ## 尚待完成
 
-- [ ] 配置真实 OpenAI-compatible 模型，并记录供应方、模型名、调用时间、原始输出与校验后输出。
-- [ ] 对模型超时、HTTP 错误、坏 JSON、含数字及合规越界分别做一次集成级故障注入；当前仅有实现和部分单元测试。
+- [ ] 补充运行时 LLM 限流场景的集成级故障注入与恢复验证。
+- [ ] 补充供应商 HTTP 错误和坏 JSON 的真实/受控集成验证；当前有安全降级实现和自动化覆盖，但不把正常生产调用视为故障证据。
+- [ ] 评估重复负载下的延迟、吞吐与调用成本，并确定缓存或请求合并策略。
 - [ ] 在本地 UI/集成环境强制东方财富核心数据失败，核对 `auto` 模式是否同时展示原始错误、快照模式与历史抓取时点；当前自动化测试已覆盖切换逻辑。
 - [ ] 完成跨浏览器、慢网与全量无障碍专项验证；当前只完成本地相同版本的证据抽屉和风格追问视觉交互，以及境外 runner 的生产 HTTP 烟测。
 - [ ] 若后续接入扶摇或 demo Provider，新增独立记录；不得用现有预留环境变量代替接入证据。

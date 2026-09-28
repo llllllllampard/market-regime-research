@@ -2,11 +2,11 @@
 
 ## 当前结论
 
-- **本地 MVP 验收：`PASS`** — 44 项自动化测试、ESLint、生产构建、生产依赖高危漏洞审计，以及实时主研判、同一时点风格追问、历史快照、证据和合规本地流程均已通过。
-- **生产部署验收：`PASS`** — Vercel 已发布；GitHub-hosted 境外 runner 已验证首页、健康检查、20/60 日分析、同会话风格复用、合规拦截和非法请求。
-- **真实运行时 LLM：`PENDING`** — 调用与降级代码已实现，但本地与 Vercel 均未配置真实模型；实际分析使用确定性模板。
+- **本地 MVP 验收：`PASS`** — 11 个测试文件、46 项自动化测试全部通过；ESLint、生产构建、生产依赖高危漏洞审计，以及实时主研判、同一时点风格追问、历史快照、证据和合规本地流程均已通过。
+- **生产部署验收：`PASS`** — Vercel 已发布；GitHub-hosted 境外 runner 已验证基础 HTTP 主链路，并在最终验证部署上完成真实 LLM 烟测。
+- **真实运行时 LLM：`PASS`** — Vercel 使用 Sensitive 环境变量接入阿里云百炼 `qwen-plus`；最终烟测返回 HTTP 200，`synthesis.status=success`，执行轨迹包含 `qwen-plus`，且没有模板降级 limitation。
 
-这里的 `PASS` 只覆盖下文列出的本地实现、自动化检查与生产 HTTP 烟测，不表示公开行情具备生产 SLA，也不表示未实现的扶摇或 demo Provider 已通过。历史快照与 `auto` 降级已经实现，但未对生产环境做真实故障注入；跨浏览器、慢网和全量无障碍专项也未执行。
+这里的 `PASS` 只覆盖下文列出的本地实现、自动化检查、生产 HTTP 烟测与一次真实百炼调用，不表示公开行情或外部模型具备生产 SLA，也不表示未实现的扶摇或 demo Provider 已通过。历史快照与 `auto` 降级已经实现，但未对生产环境做真实网络故障注入；跨浏览器、慢网、全量无障碍和限流专项也未执行。
 
 ## 测试环境
 
@@ -21,13 +21,12 @@
 | 数据模式 | 默认 `auto`；本轮分别验证实际 `live` 响应与强制 `snapshot` 响应 |
 | 实际在线来源 | 东方财富公开行情接口；不可靠的新浪 100 行后备已删除 |
 | 内置快照 | `data/market-snapshot.json`，抓取于 `2026-09-28T03:24:04.494Z`，市场日期 `2026-09-28` |
-| LLM 模式 | 本地未配置真实 Key/模型；Vercel 未配置密钥型环境变量；确定性模板 |
+| LLM 模式 | Vercel 的 `LLM_API_KEY` 使用 Sensitive 变量；已配置百炼兼容接口与 `LLM_MODEL=qwen-plus`；失败时安全回退确定性模板 |
 | 生产 URL | `https://market-regime-research-gamma.vercel.app` |
-| Vercel 部署 | `dpl_Hdjx5TsakH5PgdeJ2dwg2Sg7NEem`，2026-09-28 13:41 CST |
-| 生产烟测 | 约 2026-09-28 13:56 CST；[GitHub Actions run 36384064126](https://github.com/llllllllampard/market-regime-research/actions/runs/36384064126) |
+| Vercel 最终验证部署 | `dpl_4XVx5GBhKEmAPR8T8EdF8mV7yCkJ` |
+| 真实 LLM 最终烟测 | 2026-09-28 15:56:59 CST；[GitHub Actions run 36390799687，attempt 4](https://github.com/llllllllampard/market-regime-research/actions/runs/36390799687/attempts/4) |
 | 源码远程 | `https://github.com/llllllllampard/market-regime-research` |
-| 代码/本地验收基线 | `f8630593e1aeee0c3c35e412c5006cbce28e7d1f` |
-| 生产运行基线 | `81ed0779f2aa8ff067c1e84c79c42da67d2ef01a` |
+| 代码验收基线 | `e4e9516e912f` |
 
 状态定义：
 
@@ -43,8 +42,7 @@
 ```text
 $ npm test
 Test Files  11 passed (11)
-Tests       44 passed (44)
-Duration    638ms
+Tests       46 passed (46)
 Exit code   0
 ```
 
@@ -91,7 +89,7 @@ Ready in 251ms
 
 ## 生产环境烟测
 
-本机访问 `vercel.app` 受到 DNS 污染，无法作为可靠的生产网络验证端。因此，下表的 HTTP 证据由 GitHub-hosted 境外 runner 对生产 URL 执行；本地相同版本已人工验证证据抽屉与风格追问的视觉和交互。烟测时 Vercel 环境未配置密钥型环境变量，响应没有调用真实 LLM，使用确定性模板。
+本机访问 `vercel.app` 受到 DNS 污染，无法作为可靠的生产网络验证端。因此，生产 HTTP 证据均由 GitHub-hosted 境外 runner 对生产 URL 执行；本地相同版本已人工验证证据抽屉与风格追问的视觉和交互。下表是基础主链路烟测记录；最终真实 LLM 验收另见其后的专节。
 
 | 场景 | 实际结果 | 状态 |
 |---|---|---|
@@ -106,6 +104,19 @@ Ready in 251ms
 
 20/60 日响应的 `partial` 均由盘中成交额按口径主动留空导致，不是数据来源失败；两次主研判的 `issues=0`。这些时延是单次烟测观测值，不是性能 SLA。
 
+### 真实 LLM 最终烟测
+
+Vercel 通过 Sensitive 环境变量接入阿里云百炼 `qwen-plus`，没有在仓库、测试输出或本文记录密钥值。最终验证使用部署 `dpl_4XVx5GBhKEmAPR8T8EdF8mV7yCkJ`、代码基线 `e4e9516e912f`，由 GitHub Actions [run 36390799687，attempt 4](https://github.com/llllllllampard/market-regime-research/actions/runs/36390799687/attempts/4) 于 2026-09-28 15:56:59 CST 执行。
+
+| 检查项 | 实际结果 | 状态 |
+|---|---|---|
+| HTTP 与耗时 | `POST /api/analyze` → `200`，`8870 ms` | `PASS` |
+| 合成状态 | `synthesis.status=success` | `PASS` |
+| 模型轨迹 | 执行轨迹包含 `qwen-plus` | `PASS` |
+| 降级检查 | 响应中没有模板降级 limitation | `PASS` |
+
+上述结果只证明该次真实调用成功，不把单次 `8870 ms` 当作性能 SLA。此前 [run 36389179154](https://github.com/llllllllampard/market-regime-research/actions/runs/36389179154) 使用旧的 9 秒 LLM 截止时间，完整业务请求触发了安全降级；该次结果明确记录为降级证据，不包装为真实 LLM 成功。后续将截止时间调整为 15 秒、对百炼请求关闭思考模式、改用定性最小输入和无数字指数占位符，并明确严格 JSON 输出契约后，最终烟测通过。
+
 ## 自动化测试明细
 
 | 测试文件 | 数量 | 已验证内容 | 状态 |
@@ -115,13 +126,13 @@ Ready in 251ms
 | `tests/citations.test.ts` | 3 | Evidence → Metric → Source 正常链路；未知 Source；幻觉 inline Evidence ID | `PASS` |
 | `tests/confidence.test.ts` | 5 | 七维覆盖率、分数有限范围、全 A 代理封顶、过期封顶、demo 封顶、盘中历史快照 74 分封顶、核心缺失封顶 | `PASS` |
 | `tests/null-safety.test.ts` | 4 | 缺失不变成 0/NaN/Infinity；宽度缺失时保留趋势但状态不足；趋势与宽度日期错配时拒绝合成状态；取数前合规拦截 | `PASS` |
-| `tests/runtime-ai.test.ts` | 4 | 未配置时模板降级；合法假模型响应；未知 `E999` 拒绝；叙事方向与所引证据相反时拒绝 | `PASS` |
+| `tests/runtime-ai.test.ts` | 6 | 未配置时模板降级；合法假模型响应；百炼专属参数与跨 Provider 回归；定性最小输入、标准指数占位符恢复及 Unicode 数字/未知或误用 token 拒绝；未知 `E999` 拒绝；叙事方向冲突拒绝 | `PASS` |
 | `tests/provider.test.ts` | 1 | 日线响应的指数身份不符时拒绝数据，不把中证 1000 当作沪深 300 | `PASS` |
 | `tests/fallback.test.ts` | 2 | `auto` 在核心实时数据缺失时显式切换到快照；`live` 不静默降级且返回证据不足 | `PASS` |
 | `tests/api-compliance.test.ts` | 2 | API 对“推荐茅台”和股票二选一请求直接返回 422 `COMPLIANCE_BLOCKED`，不会进入分析主链路 | `PASS` |
 | `tests/api-session-cache.test.ts` | 1 | 两分钟快照缓存按浏览器会话 ID 与 20/60 日窗口隔离，风格追问只复用对应快照 | `PASS` |
 | `tests/switch-conditions-ui.test.ts` | 1 | 响应归一化和 UI 同时保留并渲染确认规则 `persistence` 与触发后影响 `consequence` | `PASS` |
-| **合计** | **44** | 11 个测试文件 | **`PASS`** |
+| **合计** | **46** | 11 个测试文件 | **`PASS`** |
 
 测试使用固定 fixture 和注入式假客户端，不包含真实 API Key，也不会把假模型响应当作外部模型成功证据。
 
@@ -135,7 +146,7 @@ Ready in 251ms
 | E04 | 证据追溯 | 点击 Evidence ID 打开抽屉，可见关联 Metric、公式、SourceRef、市场日期、抓取时间、原始字段和请求参数 | `PASS` |
 | E05 | 继续研究大小盘风格 | 点击继续研究入口后显示事实、归纳、不确定性和可点击引用；API 返回 `style_rotation` 计划。同一浏览器会话的 60 日主研判与随后追问 `fetchedAt` 完全相同，执行轨迹确认复用 3 个数据集 | `PASS` |
 | E06 | 合规拦截 | 输入“明天涨不涨，买什么股，几成仓？”时返回 `COMPLIANCE_BLOCKED`；API 自动化另验证“推荐茅台”和股票二选一均返回 422，研究框架类“推荐”不被误杀 | `PASS` |
-| E07 | 未配置 LLM | 主研判仍成功；执行轨迹显示“未配置运行时 LLM，已使用确定性模板” | `PASS` |
+| E07 | 未配置 LLM 的安全回退 | 在未配置运行时 LLM 的测试路径中，主研判仍成功；执行轨迹明确显示使用确定性模板，不冒充外部模型结果 | `PASS` |
 | E08 | 盘中流动性 | 2026-09-28 11:36 CST 的最新 K 线是当日未收盘数据；成交额比返回 `null`/“盘中未完成”，未错误比较完整日均值，数据健康度为 `partial` | `PASS` |
 | E09 | 实时数据主链路 | 东方财富沪深 300、中证 1000 日线及全 A 涨跌分布均成功返回；SourceRef 使用真实 Provider 名 | `PASS` |
 | E10 | 强制历史快照 | 以 `DATA_MODE=snapshot` 在本地生产服务请求 20 日主研判；返回 `snapshot`、3 个来源、市场日期 `2026-09-28`、`coverage=0.4286`、`confidence=74`，封顶原因明确为历史快照来自盘中未收盘截面 | `PASS` |
@@ -144,6 +155,7 @@ Ready in 251ms
 | E13 | 真实网络故障下的自动切换 | 尚未在本地 UI 对真实网络做断网/超时注入；当前证据是 fixture 自动化测试和强制快照烟测 | `PARTIAL` |
 | E14 | 窄屏与慢网 | 尚未留存系统化的手机宽度和网络限速检查记录 | `PENDING` |
 | E15 | 状态切换条件展示 | 服务端渲染合同测试确认页面同时显示“确认规则”和“触发后”，没有丢失 `persistence` 或 `consequence` | `PASS` |
+| E16 | 生产真实 LLM | GitHub-hosted runner 调用最终验证部署；HTTP 200、`8870 ms`、`synthesis.status=success`、轨迹含 `qwen-plus`，且没有模板降级 limitation | `PASS` |
 
 实时数据会变化。E02/E03/E05/E08/E09 记录的是测试时链路行为，不把当时市场数值设为未来测试的固定期望。E10 使用的是仓库内固定快照，因此其来源时点与盘中置信度上限可重复核验。
 
@@ -187,8 +199,10 @@ Ready in 251ms
 | 叙事方向与所引证据冲突 | 拒绝响应并回退模板 | `PASS` |
 | Evidence → Metric → Source 链路 | 正常 fixture 通过，未知 Source 被拒绝 | `PASS` |
 | 坏 JSON、HTTP 错误、超时 | 代码统一 catch 并回退；尚无逐项自动化断言 | `PARTIAL` |
-| 模型文本含数字/越界词 | 校验逻辑已实现；尚无独立测试用例 | `PARTIAL` |
-| 真实外部模型 | 无有效配置，未调用 | `PENDING` |
+| 模型文本含数字 | 诊断调用被校验拒绝并安全回退；这是拒绝路径通过，不计为外部模型成功 | `PASS`（安全回退） |
+| 模型结构不合规 | 诊断调用被 Schema 拒绝并安全回退；这是拒绝路径通过，不计为外部模型成功 | `PASS`（安全回退） |
+| 旧 9 秒截止时间 | run 36389179154 触发安全降级；未误报为成功，随后完成参数与超时修正 | `PASS`（安全回退） |
+| 真实外部模型 | 百炼 `qwen-plus` 最终烟测 HTTP 200，`synthesis.status=success`，轨迹与无降级检查通过 | `PASS` |
 
 ## 独立人工复算
 
@@ -209,21 +223,22 @@ Ready in 251ms
 
 - 新鲜度按周一至周五的工作日近似计算，尚未覆盖中国交易所节假日日历。
 - PublicMarketProvider 目前只有指数身份错配的独立 mock 单测；完整 HTTP/Schema 失败矩阵及真实网络断开时的 `auto` 页面提示仍需专项故障注入。
-- 运行时 LLM 的成功测试使用假客户端；真实供应方的超时、限流、响应差异和成本尚未验证。
+- 已完成一次百炼 `qwen-plus` 真实成功烟测，但供应方限流、长期稳定性、成本和更多响应差异仍未专项验证；诊断中出现的数字/结构拒绝均按设计安全回退，不计作模型成功。
 - 风格继续研究会在同一浏览器会话、同一窗口主研判后的两分钟内复用同一快照；不同会话/窗口已验证隔离，超时、服务实例切换或没有对应快照时会重新取数。
 - API 已实现每 IP 每分钟 12 次限流、10 KB 请求体上限与取消信号传递，但尚无专门的自动化边界测试。
-- 本轮未做真实网络故障注入、跨浏览器、慢网或全量无障碍专项测试；生产页面 HTTP 可访问性由境外 runner 验证，本地相同版本完成了证据抽屉和风格追问的视觉交互检查。
+- 本轮未做生产真实网络故障注入、跨浏览器、慢网、全量无障碍或限流专项测试；生产页面 HTTP 可访问性与真实 LLM 单次成功由境外 runner 验证，本地相同版本完成了证据抽屉和风格追问的视觉交互检查。
 
 ## 生产发布清单
 
 - [x] 创建并确认公开源码远程：`https://github.com/llllllllampard/market-regime-research`。
-- [x] 记录代码/本地验收基线 `f8630593e1aeee0c3c35e412c5006cbce28e7d1f` 与生产运行基线 `81ed0779f2aa8ff067c1e84c79c42da67d2ef01a`。
-- [x] 发布并回填：`https://market-regime-research-gamma.vercel.app`，部署 `dpl_Hdjx5TsakH5PgdeJ2dwg2Sg7NEem`。
+- [x] 记录代码验收基线 `e4e9516e912f`。
+- [x] 发布并回填：`https://market-regime-research-gamma.vercel.app`，最终验证部署 `dpl_4XVx5GBhKEmAPR8T8EdF8mV7yCkJ`。
 - [x] 由 GitHub-hosted 境外 runner 跑通生产首页、健康检查、20/60 日主研判、同会话风格追问、合规拦截和非法请求。
 - [x] 在本地相同版本跑通证据抽屉和风格继续研究的视觉交互。
 - [ ] 强制触发生产环境核心实时数据失败，核对原始错误、`auto` 快照标签和历史抓取时点提示。
-- [x] 确认 Vercel 环境未配置密钥型环境变量；线上没有真实 LLM 调用，使用确定性模板。
+- [x] 使用 Vercel Sensitive 环境变量配置百炼 `qwen-plus`，且未在仓库与报告中记录密钥。
+- [x] 完成真实 LLM 最终烟测：run 36390799687 attempt 4，HTTP 200、`synthesis.status=success`、轨迹含 `qwen-plus`、无模板降级 limitation。
 - [ ] 完成跨浏览器、慢网和全量无障碍专项测试。
-- [ ] 如启用真实 LLM，记录供应方、模型名、时间和一次校验后输出。
+- [x] 记录真实 LLM 供应方、模型名、时间、部署、代码基线和校验后输出。
 
 生产部署状态为 `PASS`；未勾选项是明确保留的非阻断验证边界，不包含在本次通过范围内。
