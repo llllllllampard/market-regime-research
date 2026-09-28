@@ -3,10 +3,10 @@
 ## 当前结论
 
 - **本地 MVP 验收：`PASS`** — 44 项自动化测试、ESLint、生产构建、生产依赖高危漏洞审计，以及实时主研判、同一时点风格追问、历史快照、证据和合规本地流程均已通过。
-- **生产发布验收：`PENDING`** — 公开源码仓库与验收基线已推送；生产 URL 和无痕生产烟测待 Vercel 授权后完成。
-- **真实运行时 LLM：`PENDING`** — 调用与降级代码已实现，但当前未配置真实模型；本地分析使用确定性模板。
+- **生产部署验收：`PASS`** — Vercel 已发布；GitHub-hosted 境外 runner 已验证首页、健康检查、20/60 日分析、同会话风格复用、合规拦截和非法请求。
+- **真实运行时 LLM：`PENDING`** — 调用与降级代码已实现，但本地与 Vercel 均未配置真实模型；实际分析使用确定性模板。
 
-这里的 `PASS` 只覆盖下文列出的本地实现和测试，不表示公开行情具备生产 SLA，也不表示未实现的扶摇或 demo Provider 已通过。历史快照与 `auto` 降级已经实现，但真实公网故障下的生产级切换仍未验证。
+这里的 `PASS` 只覆盖下文列出的本地实现、自动化检查与生产 HTTP 烟测，不表示公开行情具备生产 SLA，也不表示未实现的扶摇或 demo Provider 已通过。历史快照与 `auto` 降级已经实现，但未对生产环境做真实故障注入；跨浏览器、慢网和全量无障碍专项也未执行。
 
 ## 测试环境
 
@@ -21,10 +21,13 @@
 | 数据模式 | 默认 `auto`；本轮分别验证实际 `live` 响应与强制 `snapshot` 响应 |
 | 实际在线来源 | 东方财富公开行情接口；不可靠的新浪 100 行后备已删除 |
 | 内置快照 | `data/market-snapshot.json`，抓取于 `2026-09-28T03:24:04.494Z`，市场日期 `2026-09-28` |
-| LLM 模式 | 未配置真实 Key/模型；确定性模板 |
-| 生产 URL | `<DEPLOYMENT_URL_PENDING>` |
+| LLM 模式 | 本地未配置真实 Key/模型；Vercel 未配置密钥型环境变量；确定性模板 |
+| 生产 URL | `https://market-regime-research-gamma.vercel.app` |
+| Vercel 部署 | `dpl_Hdjx5TsakH5PgdeJ2dwg2Sg7NEem`，2026-09-28 13:41 CST |
+| 生产烟测 | 约 2026-09-28 13:56 CST；[GitHub Actions run 36384064126](https://github.com/llllllllampard/market-regime-research/actions/runs/36384064126) |
 | 源码远程 | `https://github.com/llllllllampard/market-regime-research` |
-| 被测 commit | `f8630593e1aeee0c3c35e412c5006cbce28e7d1f` |
+| 代码/本地验收基线 | `f8630593e1aeee0c3c35e412c5006cbce28e7d1f` |
+| 生产运行基线 | `81ed0779f2aa8ff067c1e84c79c42da67d2ef01a` |
 
 状态定义：
 
@@ -85,6 +88,23 @@ Ready in 251ms
 ```
 
 依赖在本轮测试前已经安装；本轮没有重新把 `npm install` 计入通过项。
+
+## 生产环境烟测
+
+本机访问 `vercel.app` 受到 DNS 污染，无法作为可靠的生产网络验证端。因此，下表的 HTTP 证据由 GitHub-hosted 境外 runner 对生产 URL 执行；本地相同版本已人工验证证据抽屉与风格追问的视觉和交互。烟测时 Vercel 环境未配置密钥型环境变量，响应没有调用真实 LLM，使用确定性模板。
+
+| 场景 | 实际结果 | 状态 |
+|---|---|---|
+| 首页 | `GET /` → `200`，`404 ms` | `PASS` |
+| 健康检查 | `GET /api/analyze` → `200`，`260 ms` | `PASS` |
+| 20 日主研判 | `POST /api/analyze` → `200`，`2078 ms`；`live`、`marketDate=2026-09-28`、`issues=0`、`dataHealth=partial`、`state=synchronized_pressure`、`confidence=74`、`evidence=3`、`sources=3` | `PASS` |
+| 同会话风格追问 | `POST /api/analyze` → `200`，`127 ms`；成功复用同一研究会话快照 | `PASS` |
+| 60 日主研判 | `POST /api/analyze` → `200`，`507 ms`；`live`、`issues=0`、`dataHealth=partial`、`confidence=74` | `PASS` |
+| 荐股拦截 | 请求返回 `422`，`category=recommendation` | `PASS` |
+| 涨跌预测拦截 | 请求返回 `422`，`category=prediction` | `PASS` |
+| 非法请求格式 | 请求返回 `400` | `PASS` |
+
+20/60 日响应的 `partial` 均由盘中成交额按口径主动留空导致，不是数据来源失败；两次主研判的 `issues=0`。这些时延是单次烟测观测值，不是性能 SLA。
 
 ## 自动化测试明细
 
@@ -192,16 +212,18 @@ Ready in 251ms
 - 运行时 LLM 的成功测试使用假客户端；真实供应方的超时、限流、响应差异和成本尚未验证。
 - 风格继续研究会在同一浏览器会话、同一窗口主研判后的两分钟内复用同一快照；不同会话/窗口已验证隔离，超时、服务实例切换或没有对应快照时会重新取数。
 - API 已实现每 IP 每分钟 12 次限流、10 KB 请求体上限与取消信号传递，但尚无专门的自动化边界测试。
-- 本轮未记录跨浏览器、无痕生产环境、移动端慢网或无障碍专项测试。
+- 本轮未做真实网络故障注入、跨浏览器、慢网或全量无障碍专项测试；生产页面 HTTP 可访问性由境外 runner 验证，本地相同版本完成了证据抽屉和风格追问的视觉交互检查。
 
 ## 生产发布清单
 
 - [x] 创建并确认公开源码远程：`https://github.com/llllllllampard/market-regime-research`。
-- [x] 记录被测 commit：`f8630593e1aeee0c3c35e412c5006cbce28e7d1f`。
-- [ ] 发布并回填：`<DEPLOYMENT_URL_PENDING>`。
-- [ ] 无痕窗口跑通主研判、证据抽屉、风格继续研究和合规拦截。
+- [x] 记录代码/本地验收基线 `f8630593e1aeee0c3c35e412c5006cbce28e7d1f` 与生产运行基线 `81ed0779f2aa8ff067c1e84c79c42da67d2ef01a`。
+- [x] 发布并回填：`https://market-regime-research-gamma.vercel.app`，部署 `dpl_Hdjx5TsakH5PgdeJ2dwg2Sg7NEem`。
+- [x] 由 GitHub-hosted 境外 runner 跑通生产首页、健康检查、20/60 日主研判、同会话风格追问、合规拦截和非法请求。
+- [x] 在本地相同版本跑通证据抽屉和风格继续研究的视觉交互。
 - [ ] 强制触发生产环境核心实时数据失败，核对原始错误、`auto` 快照标签和历史抓取时点提示。
-- [ ] 确认服务端环境变量不会进入浏览器包或日志。
+- [x] 确认 Vercel 环境未配置密钥型环境变量；线上没有真实 LLM 调用，使用确定性模板。
+- [ ] 完成跨浏览器、慢网和全量无障碍专项测试。
 - [ ] 如启用真实 LLM，记录供应方、模型名、时间和一次校验后输出。
 
-完成以上发布项前，本报告不应被解读为“生产环境已验收”。
+生产部署状态为 `PASS`；未勾选项是明确保留的非阻断验证边界，不包含在本次通过范围内。
