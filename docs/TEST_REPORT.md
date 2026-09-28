@@ -3,7 +3,7 @@
 ## 当前结论
 
 - **本地 MVP 验收：`PASS`** — 44 项自动化测试、ESLint、生产构建、生产依赖高危漏洞审计，以及实时主研判、同一时点风格追问、历史快照、证据和合规本地流程均已通过。
-- **生产发布验收：`PENDING`** — 尚无生产 URL、远程仓库或 commit，未执行无痕生产烟测。
+- **生产发布验收：`PENDING`** — 公开源码仓库与验收基线已推送；生产 URL 和无痕生产烟测待 Vercel 授权后完成。
 - **真实运行时 LLM：`PENDING`** — 调用与降级代码已实现，但当前未配置真实模型；本地分析使用确定性模板。
 
 这里的 `PASS` 只覆盖下文列出的本地实现和测试，不表示公开行情具备生产 SLA，也不表示未实现的扶摇或 demo Provider 已通过。历史快照与 `auto` 降级已经实现，但真实公网故障下的生产级切换仍未验证。
@@ -23,8 +23,8 @@
 | 内置快照 | `data/market-snapshot.json`，抓取于 `2026-09-28T03:24:04.494Z`，市场日期 `2026-09-28` |
 | LLM 模式 | 未配置真实 Key/模型；确定性模板 |
 | 生产 URL | `<DEPLOYMENT_URL_PENDING>` |
-| 源码远程 | `<SOURCE_REPOSITORY_URL_PENDING>` |
-| 被测 commit | `<COMMIT_SHA_PENDING>` |
+| 源码远程 | `https://github.com/llllllllampard/market-regime-research` |
+| 被测 commit | `f8630593e1aeee0c3c35e412c5006cbce28e7d1f` |
 
 状态定义：
 
@@ -196,8 +196,8 @@ Ready in 251ms
 
 ## 生产发布清单
 
-- [ ] 创建并确认源码远程：`<SOURCE_REPOSITORY_URL_PENDING>`。
-- [ ] 记录被测 commit：`<COMMIT_SHA_PENDING>`。
+- [x] 创建并确认公开源码远程：`https://github.com/llllllllampard/market-regime-research`。
+- [x] 记录被测 commit：`f8630593e1aeee0c3c35e412c5006cbce28e7d1f`。
 - [ ] 发布并回填：`<DEPLOYMENT_URL_PENDING>`。
 - [ ] 无痕窗口跑通主研判、证据抽屉、风格继续研究和合规拦截。
 - [ ] 强制触发生产环境核心实时数据失败，核对原始错误、`auto` 快照标签和历史抓取时点提示。

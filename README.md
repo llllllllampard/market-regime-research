@@ -13,10 +13,10 @@
 | 自动化检查 | `44/44` 测试通过，lint、生产构建及生产依赖高危漏洞审计通过（2026-09-28） |
 | 本地产品烟测 | 实时 20/60 日主研判、同一时点风格追问、历史快照、证据抽屉和合规拦截均已验证 |
 | 在线体验 | `<DEPLOYMENT_URL_PENDING>` |
-| 源码仓库 | `<SOURCE_REPOSITORY_URL_PENDING>` |
-| 被测版本 | `<COMMIT_SHA_PENDING>` |
+| 源码仓库 | [GitHub · market-regime-research](https://github.com/llllllllampard/market-regime-research) |
+| 被测版本 | [`f863059`](https://github.com/llllllllampard/market-regime-research/commit/f8630593e1aeee0c3c35e412c5006cbce28e7d1f) |
 
-最后三项是待发布时替换的精确占位符；本项目不提供虚构 URL、仓库或 commit。完整证据见 [测试报告](docs/TEST_REPORT.md)。
+生产 URL 将在 Vercel 授权和线上烟测完成后替换；本项目不提供虚构 URL、仓库或 commit。完整证据见 [测试报告](docs/TEST_REPORT.md)。
 
 ## 解决的问题
 
@@ -176,8 +176,8 @@ npm run build
 默认可部署到 Vercel，但当前尚未发布：
 
 - 生产 URL：`<DEPLOYMENT_URL_PENDING>`
-- 源码仓库：`<SOURCE_REPOSITORY_URL_PENDING>`
-- 生产 commit：`<COMMIT_SHA_PENDING>`
+- 源码仓库：[https://github.com/llllllllampard/market-regime-research](https://github.com/llllllllampard/market-regime-research)
+- 部署验收基线：[`f863059`](https://github.com/llllllllampard/market-regime-research/commit/f8630593e1aeee0c3c35e412c5006cbce28e7d1f)
 
 发布后应在无痕窗口重新验证主研判、证据追溯、风格继续研究、合规拦截与数据失败提示，再替换以上占位符。
 
